@@ -15,6 +15,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 import pickle
 import numpy as np
+from json_parser import JsonParser
 
 class DataDetector:
     """Classe pour la détection intelligente des données"""
@@ -210,6 +211,7 @@ class SiteMapper:
         self.explore_external = explore_external
         self.scraper = WebScraper(headless=True)
         self.data_detector = DataDetector()
+        self.json_parser = JsonParser()
         self.log_callback = print  # Par défaut, utilise print
         self.stats_callback = lambda x: None  # Par défaut, ne fait rien
         self.should_stop = False
@@ -686,4 +688,4 @@ def main():
         mapper.scraper.close()
 
 if __name__ == "__main__":
-    main() 
+    main()

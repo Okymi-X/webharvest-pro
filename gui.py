@@ -1,19 +1,21 @@
 import tkinter as tk
-from tkinter import ttk, scrolledtext
+from tkinter import ttk, scrolledtext, messagebox, filedialog
 import threading
 from main import SiteMapper
 from urllib.parse import urlparse
 import queue
 import json
 from datetime import datetime
+from json_parser import JsonParser
 
 class ScraperGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Web Scraper")
+        self.root.title("Web Scraper Pro")
         self.root.geometry("800x600")
         
-        # Queue pour la communication entre threads
+        # Initialisation des composants
+        self.json_parser = JsonParser()
         self.log_queue = queue.Queue()
         self.data_queue = queue.Queue()
         
@@ -154,36 +156,81 @@ class ScraperGUI:
         main_frame.rowconfigure(4, weight=1)
         
     def save_config(self):
-        """Sauvegarde la configuration actuelle"""
+        """Sauvegarde la configuration actuelle en JSON"""
         config = {
-            'url': self.url_var.get(),
-            'max_pages': self.max_pages_var.get(),
-            'max_depth': self.max_depth_var.get(),
-            'workers': self.workers_var.get(),
-            'explore_external': self.explore_external_var.get(),
-            'respect_robots': self.respect_robots_var.get(),
-            'delay': self.delay_var.get()
+            "url": self.url_var.get(),
+            "max_pages": int(self.max_pages_var.get()),
+            "max_depth": int(self.max_depth_var.get()),
+            "workers": int(self.workers_var.get()),
+            "explore_external": self.explore_external_var.get(),
+            "respect_robots": self.respect_robots_var.get(),
+            "delay": float(self.delay_var.get()),
+            "last_updated": datetime.now().isoformat()
         }
-        with open('scraper_config.json', 'w') as f:
-            json.dump(config, f)
-        self.log("Configuration sauvegardée")
-    
-    def load_config(self):
-        """Charge une configuration sauvegardée"""
+        
         try:
-            with open('scraper_config.json', 'r') as f:
-                config = json.load(f)
-            self.url_var.set(config.get('url', ''))
-            self.max_pages_var.set(config.get('max_pages', '50'))
-            self.max_depth_var.set(config.get('max_depth', '2'))
-            self.workers_var.set(config.get('workers', '3'))
-            self.explore_external_var.set(config.get('explore_external', False))
-            self.respect_robots_var.set(config.get('respect_robots', True))
-            self.delay_var.set(config.get('delay', '2'))
-            self.log("Configuration chargée")
-        except:
-            self.log("Erreur lors du chargement de la configuration")
-    
+            filename = filedialog.asksaveasfilename(
+                defaultextension=".json",
+                filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+            )
+            if filename:
+                schema = {
+                    "url": {"type": "string"},
+                    "max_pages": {"type": "integer"},
+                    "max_depth": {"type": "integer"},
+                    "workers": {"type": "integer"},
+                    "explore_external": {"type": "boolean"},
+                    "respect_robots": {"type": "boolean"},
+                    "delay": {"type": "float"},
+                    "last_updated": {"type": "date"}
+                }
+                
+                # Validation des données avant sauvegarde
+                validated_config = self.json_parser.parse_json(config, schema)
+                
+                with open(filename, 'w', encoding='utf-8') as f:
+                    json.dump(validated_config, f, indent=4, default=str)
+                messagebox.showinfo("Succès", "Configuration sauvegardée avec succès!")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors de la sauvegarde: {str(e)}")
+
+    def load_config(self):
+        """Charge une configuration depuis un fichier JSON"""
+        try:
+            filename = filedialog.askopenfilename(
+                filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+            )
+            if filename:
+                with open(filename, 'r', encoding='utf-8') as f:
+                    json_data = f.read()
+                
+                schema = {
+                    "url": {"type": "string"},
+                    "max_pages": {"type": "integer"},
+                    "max_depth": {"type": "integer"},
+                    "workers": {"type": "integer"},
+                    "explore_external": {"type": "boolean"},
+                    "respect_robots": {"type": "boolean"},
+                    "delay": {"type": "float"},
+                    "last_updated": {"type": "date"}
+                }
+                
+                # Parse et valide la configuration
+                config = self.json_parser.parse_json(json_data, schema)
+                
+                # Mise à jour de l'interface
+                self.url_var.set(config["url"])
+                self.max_pages_var.set(str(config["max_pages"]))
+                self.max_depth_var.set(str(config["max_depth"]))
+                self.workers_var.set(str(config["workers"]))
+                self.explore_external_var.set(config["explore_external"])
+                self.respect_robots_var.set(config["respect_robots"])
+                self.delay_var.set(str(config["delay"]))
+                
+                messagebox.showinfo("Succès", "Configuration chargée avec succès!")
+        except Exception as e:
+            messagebox.showerror("Erreur", f"Erreur lors du chargement: {str(e)}")
+
     def load_url_history(self):
         """Charge l'historique des URLs"""
         try:
@@ -211,18 +258,26 @@ class ScraperGUI:
     
     def show_data(self):
         """Affiche les données extraites dans une nouvelle fenêtre"""
-        if not hasattr(self, 'data_window'):
-            self.data_window = tk.Toplevel(self.root)
-            self.data_window.title("Données extraites")
-            self.data_window.geometry("600x400")
-            
-            text = scrolledtext.ScrolledText(self.data_window)
-            text.pack(fill=tk.BOTH, expand=True)
-            
-            if hasattr(self, 'mapper') and hasattr(self.mapper, 'data_by_page'):
-                text.insert(tk.END, json.dumps(self.mapper.data_by_page, indent=2))
-            else:
-                text.insert(tk.END, "Aucune donnée disponible")
+        data_window = tk.Toplevel(self.root)
+        data_window.title("Données Extraites")
+        data_window.geometry("600x400")
+        
+        # Création d'un widget Text avec scrollbar
+        text_widget = scrolledtext.ScrolledText(data_window, wrap=tk.WORD)
+        text_widget.pack(expand=True, fill='both', padx=5, pady=5)
+        
+        # Récupération des données du SiteMapper
+        if hasattr(self, 'mapper') and hasattr(self.mapper, 'data_by_page'):
+            try:
+                # Utilisation du JsonParser pour formater les données
+                formatted_data = json.dumps(self.mapper.data_by_page, indent=4, default=str)
+                text_widget.insert(tk.END, formatted_data)
+            except Exception as e:
+                text_widget.insert(tk.END, f"Erreur lors du formatage des données: {str(e)}")
+        else:
+            text_widget.insert(tk.END, "Aucune donnée disponible")
+        
+        text_widget.config(state=tk.DISABLED)
     
     def pause_scraping(self):
         """Met en pause le scraping"""
@@ -318,4 +373,4 @@ def main():
     root.mainloop()
 
 if __name__ == "__main__":
-    main() 
+    main()
