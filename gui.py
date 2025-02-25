@@ -47,7 +47,7 @@ class ScraperGUI:
         url_frame.grid(row=0, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=5)
         
         ttk.Label(url_frame, text="URL:").grid(row=0, column=0, padx=5)
-        self.url_var = tk.StringVar(value="https://egycards.com/")
+        self.url_var = tk.StringVar(value="")
         self.url_combo = ttk.Combobox(url_frame, textvariable=self.url_var, width=50)
         self.url_combo['values'] = self.load_url_history()
         self.url_combo.grid(row=0, column=1, padx=5)
